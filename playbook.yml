@@ -1,0 +1,57 @@
+---
+- name: Install Node.js and run Express.js application
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Install npm (Node Package Manager)
+      apt:
+        name: npm
+        state: present
+
+    - name: Install pm2 (Process Manager for Node.js)
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Copy Express.js application files
+      synchronize:
+        src: ./express-app/
+        dest: /home/ubuntu/express-app
+        mode: push
+
+    - name: Install npm dependencies
+      npm:
+        command: install
+        path: /home/ubuntu/express-app
+
+    - name: Start Express.js application with pm2
+      become_user: ubuntu
+      command: pm2 start /home/ubuntu/express-app/app.js
+      async: 0
+      poll: 10
+
+    - name: Ensure pm2 starts at boot
+      become_user: ubuntu
+      command: pm2 startup systemd -u ubuntu --hp /home/ubuntu
+
+    - name: Save pm2 process list
+      become_user: ubuntu
+      command: pm2 save
+
+    - name: Allow traffic on port 3000 (or your application port)
+      ufw:
+        rule: allow
+        port: 3000
+        proto: tcp
+
+    - name: Enable UFW (Uncomplicated Firewall)
+      ufw:
+        state: enabled
+        logging: on
